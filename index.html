@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Инспекционна клетка Duplo</title>
+<meta name="description" content="Инспекционна клетка с машинно зрение и AI: 3D камера, PatchCore откриване на аномалии и рамо, което удря негодните детайли. Резултати без разкрасяване.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #f6f7f5;
+  --surface: #ffffff;
+  --ink: #16191c;
+  --muted: #575e64;
+  --line: #d9ddd9;
+  --accent: #0f6a73;
+  --good: #2a78d6;
+  --defect: #eb6834;
+  --ng-zone: rgba(235, 104, 52, 0.07);
+  --measure: 40rem;
+  --wide: 70rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #1b1d1f;
+    --surface: #232629;
+    --ink: #eceeec;
+    --muted: #a3aaae;
+    --line: #34383b;
+    --accent: #4fb3ba;
+    --good: #3987e5;
+    --defect: #d95926;
+    --ng-zone: rgba(217, 89, 38, 0.10);
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #1b1d1f; --surface: #232629; --ink: #eceeec; --muted: #a3aaae; --line: #34383b;
+  --accent: #4fb3ba; --good: #3987e5; --defect: #d95926; --ng-zone: rgba(217, 89, 38, 0.10);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1.0625rem/1.6 "Onest", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+img { display: block; max-width: 100%; height: auto; }
+a { color: var(--accent); text-underline-offset: 0.18em; }
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+.wrap { max-width: var(--wide); margin: 0 auto; padding: 0 1rem; }
+.text { max-width: var(--measure); }
+
+h1, h2, h3 { line-height: 1.15; margin: 0; letter-spacing: -0.015em; }
+h1 { font-size: clamp(2.1rem, 5vw, 3.5rem); font-weight: 700; letter-spacing: -0.03em; }
+h2 { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 650; margin-bottom: 1rem; }
+h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.35rem; letter-spacing: 0; }
+p { margin: 0 0 1rem; }
+ul { padding-left: 1.2rem; }
+li { margin-bottom: 0.4rem; }
+.muted { color: var(--muted); }
+
+section { padding: clamp(2.5rem, 6vw, 4.5rem) 0; border-top: 1px solid var(--line); }
+
+/* hero: the claim on the left, the cell working on the right */
+.hero { padding: clamp(2.5rem, 7vw, 5rem) 0 clamp(2.5rem, 6vw, 4rem); }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; gap: clamp(2rem, 5vw, 4rem); align-items: center; }
+.lede { font-size: 1.2rem; line-height: 1.5; color: var(--muted); margin: 1.25rem 0 1.75rem; }
+.chain { display: flex; flex-wrap: wrap; gap: 0.4rem; list-style: none; padding: 0; margin: 0 0 1.75rem; }
+.chain li { margin: 0; padding: 0.35rem 0.75rem; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; font-size: 0.95rem; }
+.chain li + li::before { content: ""; }
+.facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 1rem; max-width: 36rem; }
+.facts dt { font-weight: 600; white-space: nowrap; }
+.facts dd { margin: 0; color: var(--muted); }
+
+.video { position: relative; aspect-ratio: 9 / 16; border-radius: 10px; overflow: hidden; background: #000; }
+.video button { all: unset; cursor: pointer; position: absolute; inset: 0; }
+.video button img { width: 100%; height: 100%; object-fit: cover; opacity: 0.85; }
+.video button span {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  background: rgba(0,0,0,.72); color: #fff; padding: 0.7rem 1.1rem; border-radius: 999px;
+  font-weight: 600; white-space: nowrap;
+}
+.video button:hover span, .video button:focus-visible span { background: var(--accent); }
+.video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.video-note { font-size: 0.88rem; color: var(--muted); margin-top: 0.5rem; }
+
+/* requirement -> evidence */
+.req { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; }
+.req li { display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: 1.5rem; padding: 1rem 0; border-bottom: 1px solid var(--line); margin: 0; }
+.req li:first-child { border-top: 1px solid var(--line); }
+.req strong { font-weight: 600; }
+.req p { margin: 0; color: var(--muted); }
+
+/* figures */
+.frames { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.75rem 0 2.5rem; }
+figure { margin: 0; }
+figure img { border-radius: 4px; background: var(--line); }
+figcaption { font-size: 0.92rem; color: var(--muted); margin-top: 0.5rem; line-height: 1.45; }
+figcaption b { color: var(--ink); font-weight: 600; }
+
+.how { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 22rem); gap: clamp(2rem, 5vw, 4rem); align-items: start; }
+.steps { list-style: none; padding: 0; margin: 0; counter-reset: s; display: grid; gap: 1.25rem; }
+.steps > li { counter-increment: s; display: grid; grid-template-columns: 2.4rem 1fr; gap: 0 0.75rem; margin: 0; }
+.steps > li::before {
+  content: counter(s); grid-row: span 2;
+  width: 2.1rem; height: 2.1rem; border-radius: 50%;
+  border: 1.5px solid var(--ink); display: grid; place-items: center; font-weight: 600; font-size: 0.95rem;
+}
+.steps > li > * { grid-column: 2; }
+.steps h3 { margin-top: 0.3rem; }
+.steps p { margin: 0; color: var(--muted); }
+.hw { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.hw-list { font-size: 0.95rem; color: var(--muted); margin-top: 1rem; }
+
+/* score chart */
+.chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1.25rem; margin: 1.75rem 0 1rem; }
+.chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1.5rem; align-items: baseline; margin-bottom: 0.75rem; }
+.chart-head h3 { margin: 0; }
+.legend { display: flex; gap: 1.1rem; list-style: none; padding: 0; margin: 0; font-size: 0.92rem; color: var(--muted); }
+.legend li { margin: 0; display: flex; align-items: center; gap: 0.4rem; }
+.legend i { width: 0.75rem; height: 0.75rem; border-radius: 50%; display: inline-block; }
+.chart-body { display: grid; grid-template-columns: minmax(0, 1fr) 13.5rem; gap: 1.25rem; align-items: start; }
+#chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+#chart text { font-family: inherit; fill: var(--muted); font-size: 12px; }
+#chart .row-label { fill: var(--ink); font-weight: 600; font-size: 13px; }
+#chart .note { fill: var(--ink); font-size: 12px; }
+#chart circle.dot { stroke: var(--surface); stroke-width: 2; cursor: pointer; }
+#chart circle.dot:focus { outline: none; }
+#chart circle.dot.sel { stroke: var(--ink); stroke-width: 2.5; }
+#chart circle.hit { fill: transparent; cursor: pointer; }
+.peek { font-size: 0.92rem; }
+.peek img { width: 100%; border-radius: 4px; aspect-ratio: 200 / 170; object-fit: cover; }
+.peek .title { font-weight: 600; margin: 0.6rem 0 0.15rem; }
+.peek p { margin: 0 0 0.3rem; color: var(--muted); }
+.verdict-wrong { color: var(--ink); font-weight: 600; }
+.hint { font-size: 0.88rem; color: var(--muted); margin: 0.75rem 0 0; }
+details { margin-top: 0.75rem; font-size: 0.92rem; }
+summary { cursor: pointer; color: var(--accent); }
+table { border-collapse: collapse; margin-top: 0.75rem; width: 100%; max-width: 32rem; }
+th, td { text-align: left; padding: 0.3rem 0.6rem 0.3rem 0; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; }
+
+.outcomes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem 2.5rem; margin-top: 1.5rem; }
+.outcomes p { margin: 0; }
+.wide-fig { margin: 2.25rem 0 0; }
+.notes { list-style: none; padding: 0; margin: 1.25rem 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem 2.5rem; }
+.notes li { margin: 0; color: var(--muted); font-size: 0.97rem; }
+.notes b { color: var(--ink); font-weight: 600; }
+
+.fixes { list-style: none; padding: 0; margin: 0; }
+.fixes li { display: grid; grid-template-columns: minmax(0, 18rem) minmax(0, 1fr); gap: 1.5rem; padding: 1rem 0; border-bottom: 1px solid var(--line); margin: 0; }
+.fixes li:first-child { border-top: 1px solid var(--line); }
+.fixes strong { font-weight: 600; }
+.fixes p { margin: 0; color: var(--muted); }
+
+.handshake { display: flex; flex-wrap: wrap; gap: 0.5rem; list-style: none; padding: 0; margin: 1.25rem 0 1.5rem; counter-reset: h; }
+.handshake li { margin: 0; padding: 0.5rem 0.9rem; border: 1.5px solid var(--accent); border-radius: 6px; font-weight: 600; color: var(--accent); }
+.status-note { display: inline-block; font-size: 0.9rem; padding: 0.25rem 0.7rem; border-radius: 999px; background: var(--surface); border: 1px dashed var(--muted); color: var(--muted); margin-bottom: 1rem; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2.5rem; }
+.contact .name { font-size: 1.35rem; font-weight: 600; margin: 0; }
+.contact a { font-size: 1.15rem; }
+.contact { padding-bottom: 4rem; }
+footer { padding: 1.5rem 0 2.5rem; color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--line); }
+
+@media (max-width: 900px) {
+  .hero-grid, .how, .cols { grid-template-columns: 1fr; }
+  .hero-grid .video-col { max-width: 19rem; }
+  .chart-body { grid-template-columns: 1fr; }
+  .peek { display: grid; grid-template-columns: 9rem 1fr; gap: 0 1rem; }
+  .peek img { grid-row: span 4; }
+  .peek .title { margin-top: 0; }
+  .req li, .fixes li { grid-template-columns: 1fr; gap: 0.25rem; }
+}
+@media (max-width: 600px) {
+  .frames, .outcomes, .notes { grid-template-columns: 1fr; }
+  .facts { grid-template-columns: 1fr; gap: 0 0; }
+  .facts dd { margin-bottom: 0.6rem; }
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <h1>Инспекционна клетка с машинно зрение и AI</h1>
+      <p class="lede text">Малка, но завършена клетка, изградена за няколко дни у дома. 3D камера намира детайла (тухличка LEGO Duplo), AI модел решава дали е годен, а стъпков двигател с рамо удря негодните.</p>
+      <ul class="chain" aria-label="Пътят на всеки детайл">
+        <li>камера</li><li>намиране и изправяне</li><li>правила + AI</li><li>OK / NG</li><li>удар на NG</li>
+      </ul>
+      <dl class="facts">
+        <dt>Обучение</dt><dd>само на 27 снимки на годни детайли, 4.5 s на GPU</dd>
+        <dt>Анализ</dt><dd>14–20 ms на кадър, в реално време</dd>
+        <dt>Проверка</dt><dd>хванати са всички 23 дефекта; 4 от 9 годни са отхвърлени погрешно и причината е известна</dd>
+      </dl>
+    </div>
+    <div class="video-col">
+      <div class="video" id="video">
+        <button type="button" aria-label="Пусни видеото на клетката в действие">
+          <img src="img/poster.jpg" alt="" width="480" height="853">
+          <span>Видео на клетката</span>
+        </button>
+      </div>
+      <p class="video-note">Видеото е в YouTube и се зарежда при натискане. <a href="https://youtube.com/shorts/m8cPQQS8TpA">Отвори в YouTube</a></p>
+    </div>
+  </div>
+</header>
+
+<main>
+<section>
+  <div class="wrap">
+    <h2>Какво от обявата показва демото</h2>
+    <ul class="req">
+      <li><strong>AI за инспекция, измерване и разпознаване</strong><p>PatchCore (откриване на аномалии), обучен само на годни детайли. Топлинната карта показва къде е дефектът, а размерът на детайла се измерва отделно.</p></li>
+      <li><strong>Връзка камера – робот/PLC в реално време</strong><p>Компютърът решава OK/NG и командва Arduino, драйвер и стъпков двигател по Modbus RTU. При липса на отговор се показва <code>MOTOR FAULT</code>.</p></li>
+      <li><strong>Самодиагностика, обработка на грешки, адаптивни решения</strong><p>Клетката отказва да инспектира, когато детайлът не е изцяло в зоната, когато има повече от един детайл или ръка в зоната (<code>NO INSPECTION</code>).</p></li>
+      <li><strong>Оптични параметри и координатни системи</strong><p>Заключени експозиция, усилване и баланс на бялото с проверка за несъответствие; зона за инспекция, настроена на живо; детайлът се завърта към стандартна ориентация преди анализа.</p></li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Как работи</h2>
+    <div class="frames">
+      <figure>
+        <img src="img/01_ng_stick.jpg" alt="Екранът на клетката: тухличка с пръчица, решение NG" width="720" height="530" loading="lazy">
+        <figcaption><b>NG.</b> Върху тухличката има пръчица. Топлинната карта я очертава, а правилото за размер също сработва. Оценка 0.907, анализ за 14 ms.</figcaption>
+      </figure>
+      <figure>
+        <img src="img/02_ok.jpg" alt="Екранът на клетката: годна тухличка, решение OK" width="720" height="530" loading="lazy">
+        <figcaption><b>OK.</b> Годна тухличка, всички проверки минават. Оценка 0.316 при праг 0.521, анализ за 20 ms.</figcaption>
+      </figure>
+      <figure>
+        <img src="img/03_no_inspection_hand.jpg" alt="Екранът на клетката: ръка в зоната, NO INSPECTION" width="720" height="530" loading="lazy">
+        <figcaption><b>NO INSPECTION.</b> Ръката на оператора е в зоната. Клетката не гадае, а отказва да инспектира и задържа удара.</figcaption>
+      </figure>
+    </div>
+
+    <div class="how">
+      <ol class="steps">
+        <li><h3>Намиране</h3><p>Детайлът се търси само в зададената зона, за да не пречат околните предмети. Ако нещо стърчи извън зоната или има повече от един детайл, инспекция не се прави.</p></li>
+        <li><h3>Изправяне</h3><p>Детайлът се завърта с дългата страна хоризонтално и се изрязва 240×240 px. Моделът винаги го вижда в една и съща ориентация.</p></li>
+        <li><h3>Правила за геометрия</h3><p>Дължина и ширина спрямо статистиката на годните детайли. Грешна форма (2×2, плочка, легнала тухличка) се хваща детерминирано и обяснимо.</p></li>
+        <li><h3>AI за повърхността</h3><p>PatchCore дава топлинна карта. Оценката е максимумът ѝ само в областта около детайла, а не в целия кадър.</p></li>
+        <li><h3>Решение и удар</h3><p>OK само ако всички правила минават и оценката е под прага; NG носи причината. Рамото удря NG детайла, а камерата проверява, че той наистина е помръднат.</p></li>
+      </ol>
+      <div>
+        <div class="hw">
+          <figure>
+            <img src="img/04_cell_arm.jpg" alt="NEMA 17 двигател с рамо от дървени пръчици до тухличка" width="720" height="900" loading="lazy">
+            <figcaption>Двигател и рамо</figcaption>
+          </figure>
+          <figure>
+            <img src="img/05_electronics.jpg" alt="Arduino Mega и драйвер за стъпков двигател" width="720" height="900" loading="lazy">
+            <figcaption>Arduino Mega и драйвер</figcaption>
+          </figure>
+        </div>
+        <ul class="hw-list">
+          <li>Intel RealSense D435 (цвят + дълбочина), на ~36 cm над зоната</li>
+          <li>лаптоп с NVIDIA RTX 3080</li>
+          <li>Arduino Mega 2560, драйвер тип TB6600 (1/16 стъпка, 1.0 A)</li>
+          <li>NEMA 17 с Г-образно рамо от дървени пръчици</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="text">
+      <h2>Резултати, без разкрасяване</h2>
+      <p>Проверка върху 32 снимки, които моделът не е виждал: 9 годни и 23 дефектни (легнали и обърнати тухлички, грешен цвят и форма, пръчици, малки парченца хартия).</p>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-head">
+        <h3>Оценка на аномалия за всяка проверочна снимка</h3>
+        <ul class="legend">
+          <li><i style="background:var(--good)"></i>годна</li>
+          <li><i style="background:var(--defect)"></i>дефектна</li>
+        </ul>
+      </div>
+      <div class="chart-body">
+        <div id="chart" role="group" aria-label="Оценки на 32-те проверочни снимки спрямо прага"></div>
+        <div class="peek" id="peek" aria-live="polite"></div>
+      </div>
+      <p class="hint">Изберете точка, за да видите снимката с топлинната карта.</p>
+      <details>
+        <summary>Таблица с всички 32 оценки</summary>
+        <table id="table"><thead><tr><th>Снимка</th><th>Истински клас</th><th>Оценка</th><th>Решение</th></tr></thead><tbody></tbody></table>
+      </details>
+    </div>
+
+    <div class="outcomes">
+      <p><strong>Всички 23 дефекта са хванати.</strong> 12 от правилото за размер, останалите от AI модела.</p>
+      <p><strong>4 от 9 годни са отхвърлени погрешно.</strong> За да се хванат най-малките парченца хартия (0.52–0.54), прагът е нисък, а годни тухлички с отблясъци са малко над него.</p>
+    </div>
+    <p class="text muted" style="margin-top:1.25rem">Оставих резултата такъв, какъвто е. Перфектен резултат при 32 снимки би изглеждал нагласен, а причините за грешките са известни и се решават.</p>
+
+    <figure class="wide-fig">
+      <img src="img/borderline.jpg" alt="Гранични случаи: снимка и топлинна карта за най-малките дефекти и погрешно отхвърлените годни" width="1400" height="1146" loading="lazy">
+      <figcaption>Граничните случаи отблизо: снимка | топлинна карта. Бялата рамка е областта, в която се оценява; жълтият кръг е най-горещата точка, която определя оценката.</figcaption>
+    </figure>
+    <ul class="notes">
+      <li><b>Дефекти 0072 и 0073:</b> кръгът е точно върху малкото парченце хартия. Моделът го вижда, но с малък запас над прага.</li>
+      <li><b>Годни 0018 и 0040:</b> отблясъкът по пъпките вдясно е толкова силен, че намирането отрязва този край. Отблясъкът вреди два пъти: на намирането и на оценката.</li>
+      <li><b>Годна 0032:</b> най-горещата точка е отблясък върху пъпка.</li>
+      <li><b>Годна 0010:</b> най-горещата точка е ръбът на кутията, който влиза в ъгъла на изрязаното.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="wrap cols">
+    <div class="text">
+      <h2>Как една грешка промени метода</h2>
+      <p>В първата версия, за да не се виждат кутиите, всичко извън зоната се „боядисваше“ в цвета на хартията. Топлинните карти показаха, че това създава нов проблем: при погрешно отхвърлените годни тухлички най-горещата точка е върху шева, където боядисаната площ среща истинската хартия. Моделът никога не е виждал такъв шев и го приема за аномалия.</p>
+      <p>Грешката беше в обработката, не в детайла или модела. Сега нищо не се боядисва: зоната само определя къде да се търси детайлът, а оценката се смята само около него. Измерване, а не догадка, промени архитектурата.</p>
+    </div>
+    <figure>
+      <img src="img/spike_overlap.jpg" alt="Първа версия: топлинните карти на погрешно отхвърлените годни светят върху шева в ъгъла" width="1400" height="1146" loading="lazy">
+      <figcaption>Първа версия. При дефектите кръгът е върху дефекта; при двете погрешно отхвърлени годни (0032, 0010) е в празния ъгъл, върху шева.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Какво не е перфектно и как се решава</h2>
+    <ul class="fixes">
+      <li><strong>Отблясъци по пъпките (0018, 0040, 0032)</strong><p>Дифузер на светлината или кръстосана поляризация, стандартът за гланцова пластмаса; повече годни примери с отблясъци в обучението; намиране по дълбочина, за да не се отрязва осветеният край.</p></li>
+      <li><strong>Околни предмети в ъгъла на изрязаното (0010)</strong><p>Оценка само в областта на детайла (вече е така) и по-плътна зона за инспекция; в реална клетка фиксиран фон.</p></li>
+      <li><strong>Сенки, например от рамото</strong><p>Намиране на детайла по дълбочина: сянката няма височина. Покритието с дълбочина в зоната е 94–99 %.</p></li>
+      <li><strong>Сиви и бели детайли върху бяла хартия</strong><p>Пак дълбочина вместо цвят.</p></li>
+      <li><strong>Оценки близо до прага</strong><p>Три зони вместо един праг: OK / NG / RECHECK. Граничен детайл се заснема отново и при съмнение клетката спира за оператора. Нищо не се пропуска или изхвърля „тихо“.</p></li>
+      <li><strong>Праг, избран върху същите снимки</strong><p>Прагът се избира върху валидационен набор, а крайните числа се отчитат веднъж, върху отделна сесия.</p></li>
+    </ul>
+    <p class="text muted" style="margin-top:1.5rem">По пътя имаше и „полеви“ проблеми, които всяка клетка среща: USB 2 кабел, който ограничава камерата, лампа, която пробива дупки в картата на дълбочина, DIP превключватели, четени наобратно (3.0 A вместо 1.0 A), разхлабени проводници, предмети, преместени след калибриране. Всеки е открит с измерване и е записан в документацията.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap cols">
+    <div class="text">
+      <h2>Modbus RTU и автоматичен цикъл</h2>
+      <span class="status-note">Реализирано и тествано срещу симулация; предстои проверка на хардуера</span>
+      <p>Компютърът (master) и Arduino (slave) говорят по Modbus RTU със същата карта на регистрите, която би се конфигурирала към реален PLC. Всеки удар минава през 4-стъпков handshake:</p>
+      <ol class="handshake" aria-label="Стъпки на handshake">
+        <li>READY</li><li>REQ</li><li>BUSY</li><li>DONE</li>
+      </ol>
+      <ul>
+        <li>heartbeat в двете посоки: ако компютърът замълчи за 1 s, Arduino спира двигателя; ако Arduino замълчи за 0.5 s, компютърът спира да изпраща удари;</li>
+        <li>след рестарт по време на удар рамото съобщава <code>NOT_HOME</code> и не приема удари, докато операторът не върне пръчката;</li>
+        <li>докато в зоната има ръка, ударът се задържа и се разрешава отново едва след 3 празни кадъра.</li>
+      </ul>
+    </div>
+    <div class="text">
+      <h2>Автоматичен цикъл</h2>
+      <p>Детайлът се успокоява, следва инспекция, удар и проверка с камерата, че детайлът наистина е помръднат. Ако не е, клетката съобщава <code>REJECT_FAILED</code>.</p>
+      <p>Логиката на Arduino е отделена от хардуера и се тества на компютъра, включително срещу истинския master, с pytest и C++ тестове.</p>
+      <h3 style="margin-top:2rem">Следващи стъпки</h3>
+      <ul>
+        <li>намиране на детайла по дълбочина и дифузна светлина;</li>
+        <li>C++ версия на анализа: моделът, експортиран към ONNX, за вградена система.</li>
+      </ul>
+      <h3 style="margin-top:1.5rem">Технологии</h3>
+      <p class="muted">Python, OpenCV, Intel RealSense SDK, PyTorch и anomalib (PatchCore, WideResNet-50), Arduino (C++), AccelStepper, Modbus RTU, pytest.</p>
+    </div>
+  </div>
+</section>
+
+<section class="contact">
+  <div class="wrap">
+    <h2>Контакт</h2>
+    <p class="name">Калин Пежгорски</p>
+    <a href="mailto:k.pejgorski@gmail.com">k.pejgorski@gmail.com</a>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">Октомври 2026</div>
+</footer>
+
+<script>
+(function () {
+  // video: load YouTube only when asked
+  var v = document.getElementById('video');
+  v.querySelector('button').addEventListener('click', function () {
+    v.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/m8cPQQS8TpA?autoplay=1" title="Инспекционната клетка в действие" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
+  });
+
+  // validation set, read off results_all.jpg; threshold 0.521
+  var T = 0.521;
+  var raw = 'g23 .20,g27 .27,g36 .29,g44 .30,g14 .32,d57 .49,d72 .521,d73 .536,d58 .54,d68 .54,g18 .539,g40 .543,g10 .549,g32 .580,d56 .58,d70 .63,d71 .63,d46 .63,d45 .65,d69 .67,d50 .68,d51 .70,d63 .72,d59 .76,d62 .77,d66 .80,d67 .84,d47 .86,d48 .89,d64 .91,d65 .92,d55 .94';
+  var notes = {
+    d57: 'Под прага, но правилото за размер го хваща (2×2 вместо 2×4).',
+    d72: 'Малко парченце хартия: хванато с малък запас.',
+    d73: 'Малко парченце хартия: хванато с малък запас.',
+    g18: 'Отблясък по пъпките вдясно отрязва края при намирането.',
+    g40: 'Отблясък по пъпките вдясно отрязва края при намирането.',
+    g10: 'Най-горещата точка е ръбът на кутията в ъгъла.',
+    g32: 'Най-горещата точка е отблясък върху пъпка.'
+  };
+  var data = raw.split(',').map(function (s) {
+    var p = s.split(' '), id = p[0];
+    return { id: id, good: id[0] === 'g', n: id.slice(1), score: parseFloat(p[1]) };
+  });
+  data.forEach(function (d) { d.ng = !d.good || d.score >= T; });
+
+  var chart = document.getElementById('chart'), peek = document.getElementById('peek');
+  var NS = 'http://www.w3.org/2000/svg', selected = 'g18';
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function fmt(v) { return String(v).length > 4 ? v.toFixed(3) : v.toFixed(2); }
+  function label(d) { return (d.good ? 'Годна ' : 'Дефектна ') + d.n; }
+  function verdict(d) {
+    if (d.good && d.ng) return '<span class="verdict-wrong">NG: погрешно отхвърлена</span>';
+    if (d.good) return 'OK: правилно';
+    return 'NG: правилно хваната';
+  }
+  function showPeek(d) {
+    peek.innerHTML = '<img src="img/tiles/' + d.id + '.jpg" alt="' + label(d) + ' с топлинна карта" width="200" height="170">' +
+      '<p class="title">' + label(d) + '</p><p>Оценка ' + fmt(d.score) + ' при праг ' + T + '</p><p>' + verdict(d) + '</p>' +
+      (notes[d.id] ? '<p>' + notes[d.id] + '</p>' : '');
+  }
+  function select(id) {
+    selected = id;
+    chart.querySelectorAll('circle.dot').forEach(function (c) { c.classList.toggle('sel', c.dataset.id === id); });
+    showPeek(data.filter(function (d) { return d.id === id; })[0]);
+  }
+
+  function draw() {
+    var W = Math.max(chart.clientWidth, 280), small = W < 520;
+    var padL = small ? 8 : 104, padR = 14, r = small ? 5 : 7, gap = 2 * r + 2;
+    var lo = 0.15, hi = 1.0;
+    var x = function (s) { return padL + (s - lo) / (hi - lo) * (W - padL - padR); };
+    // beeswarm: stack dots that would overlap, alternating above and below the row line
+    function place(rows) {
+      var placed = [];
+      rows.forEach(function (d) {
+        var cx = x(d.score);
+        for (var k = 0; ; k++) {
+          var lvl = k === 0 ? 0 : (k % 2 ? (k + 1) / 2 : -k / 2);
+          var clash = placed.some(function (p) { return p.lvl === lvl && Math.abs(p.cx - cx) < gap; });
+          if (!clash) { placed.push({ cx: cx, lvl: lvl, d: d }); break; }
+        }
+      });
+      return placed;
+    }
+    var good = place(data.filter(function (d) { return d.good; }));
+    var bad = place(data.filter(function (d) { return !d.good; }));
+    var span = function (ps) { var a = ps.map(function (p) { return p.lvl; }); return [Math.min.apply(0, a), Math.max.apply(0, a)]; };
+    var gs = span(good), bs = span(bad), top = 40;
+    var gy = top + (-gs[0]) * gap + r + 6 + (small ? 22 : 0);
+    var by = gy + (gs[1] - bs[0]) * gap + (small ? 50 : 64);
+    var H = by + bs[1] * gap + r + 48;
+
+    chart.innerHTML = '';
+    var svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, height: H });
+    var tx = x(T);
+    el('rect', { x: tx, y: top - 8, width: W - padR - tx, height: H - top - 22, fill: 'var(--ng-zone)' }, svg);
+    var t1 = el('text', { x: padL, y: top - 14 }, svg); t1.textContent = 'OK';
+    var t2 = el('text', { x: W - padR - 6, y: top - 14, 'text-anchor': 'end' }, svg); t2.textContent = 'NG';
+    el('line', { x1: tx, x2: tx, y1: top - 8, y2: H - 22, stroke: 'var(--ink)', 'stroke-width': 1.5, 'stroke-dasharray': '4 3' }, svg);
+    var tl = el('text', { x: tx, y: top - 14, 'text-anchor': 'middle', class: 'note' }, svg); tl.textContent = 'праг ' + T;
+
+    // axis
+    var ay = H - 24;
+    el('line', { x1: padL, x2: W - padR, y1: ay, y2: ay, stroke: 'var(--line)' }, svg);
+    [0.2, 0.4, 0.6, 0.8, 1.0].forEach(function (s) {
+      el('line', { x1: x(s), x2: x(s), y1: ay, y2: ay + 4, stroke: 'var(--muted)' }, svg);
+      var t = el('text', { x: x(s), y: ay + 17, 'text-anchor': 'middle' }, svg); t.textContent = s.toFixed(1);
+    });
+
+    // row labels
+    if (!small) {
+      var lg = el('text', { x: 0, y: gy + 4, class: 'row-label' }, svg); lg.textContent = 'Годни (9)';
+      var lb = el('text', { x: 0, y: by + 4, class: 'row-label' }, svg); lb.textContent = 'Дефектни (23)';
+    } else {
+      var sg = el('text', { x: padL, y: gy + gs[0] * gap - r - 8, class: 'row-label' }, svg); sg.textContent = 'Годни (9)';
+      var sb = el('text', { x: padL, y: by + bs[0] * gap - r - 8, class: 'row-label' }, svg); sb.textContent = 'Дефектни (23)';
+    }
+
+    function dots(ps, y0) {
+      ps.forEach(function (p) {
+        var d = p.d, cy = y0 + p.lvl * gap;
+        var c = el('circle', { cx: p.cx, cy: cy, r: r, class: 'dot', fill: d.good ? 'var(--good)' : 'var(--defect)', tabindex: 0, role: 'button',
+          'aria-label': label(d) + ', оценка ' + fmt(d.score) + ', ' + (d.ng ? 'NG' : 'OK') + (d.good && d.ng ? ', погрешно' : '') }, svg);
+        c.dataset.id = d.id;
+        var hit = el('circle', { cx: p.cx, cy: cy, r: r + 4, class: 'hit' }, svg);
+        [c, hit].forEach(function (e) {
+          e.addEventListener('mouseenter', function () { select(d.id); });
+          e.addEventListener('click', function () { select(d.id); });
+        });
+        c.addEventListener('focus', function () { select(d.id); });
+        c.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(d.id); } });
+      });
+    }
+    dots(good, gy);
+    dots(bad, by);
+
+    // the two things worth pointing at
+    var fr = good.filter(function (p) { return p.d.ng; });
+    var fx = Math.max.apply(0, fr.map(function (p) { return p.cx; })) + r + 6;
+    var fy = gy + Math.min.apply(0, fr.map(function (p) { return p.lvl; })) * gap;
+    var n1 = el('text', { x: fx, y: fy + 4, class: 'note' }, svg); n1.textContent = small ? '4 погрешно' : '4 годни над прага: NG погрешно';
+    var p57 = bad.filter(function (p) { return p.d.id === 'd57'; })[0];
+    var n2 = el('text', { x: p57.cx - r - 6, y: by + p57.lvl * gap + 4, 'text-anchor': 'end', class: 'note' }, svg);
+    n2.textContent = small ? 'размер' : 'хваната от правилото за размер';
+
+    chart.appendChild(svg);
+    select(selected);
+  }
+
+  var tb = document.querySelector('#table tbody');
+  data.forEach(function (d) {
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + d.n + '</td><td>' + (d.good ? 'годна' : 'дефектна') + '</td><td>' + fmt(d.score) + '</td><td>' + (d.ng ? 'NG' : 'OK') + (d.good && d.ng ? ' (погрешно)' : '') + '</td>';
+    tb.appendChild(tr);
+  });
+
+  draw();
+  var rt;
+  window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(draw, 120); });
+})();
+</script>
+</body>
+</html>
